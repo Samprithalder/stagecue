@@ -20,7 +20,7 @@ export default function Inspector() {
       filters: [
         {
           name: "Media",
-          extensions: ["wav", "mp3", "flac", "ogg", "oga", "m4a", "aac", "opus", "aiff", "png", "jpg", "jpeg", "webp", "gif", "bmp", "mp4", "mov", "mkv", "webm", "pdf"],
+          extensions: ["wav", "mp3", "flac", "ogg", "oga", "m4a", "aac", "opus", "aiff", "aif", "wma", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "mp4", "mov", "mkv", "webm", "avi", "m4v", "pdf", "ppt", "pptx", "odp"],
         },
       ],
     });
@@ -29,6 +29,21 @@ export default function Inspector() {
     try {
       const assets = await ipc.assetImport(paths);
       useShow.getState().notify("info", `Imported ${assets.length} file(s).`);
+    } catch (e) {
+      useShow.getState().notify("error", `Import failed: ${e}`);
+    }
+  }
+
+  async function importFolder() {
+    const folder = await openFileDialog({ title: "Import folder of media", directory: true, multiple: false });
+    if (!folder) return;
+    try {
+      const assets = await ipc.assetImport([String(folder)]);
+      if (assets.length) {
+        useShow.getState().notify("info", `Imported ${assets.length} media file(s) from folder.`);
+      } else {
+        useShow.getState().notify("warn", "That folder contains no media files StageCue recognizes.");
+      }
     } catch (e) {
       useShow.getState().notify("error", `Import failed: ${e}`);
     }
@@ -44,7 +59,7 @@ export default function Inspector() {
     return (
       <aside className="panel w-[300px] shrink-0 p-4 text-dim" aria-label="Inspector">
         <p>Select a cue to inspect it. Drag media from the library into a cue to assign it.</p>
-        <ImportZone onImport={() => void importFiles()} />
+        <ImportZone onImport={() => void importFiles()} onImportFolder={() => void importFolder()} />
       </aside>
     );
   }
@@ -228,7 +243,7 @@ export default function Inspector() {
         </button>
       </div>
 
-      <ImportZone onImport={() => void importFiles()} />
+      <ImportZone onImport={() => void importFiles()} onImportFolder={() => void importFolder()} />
       <button className="sc-btn mt-3 text-xs" onClick={commit}>
         Apply changes
       </button>
@@ -262,13 +277,24 @@ function NumField(props: {
   );
 }
 
-function ImportZone({ onImport }: { onImport?: () => void }) {
+function ImportZone({
+  onImport,
+  onImportFolder,
+}: {
+  onImport?: () => void;
+  onImportFolder?: () => void;
+}) {
   return (
     <div className="mt-4 rounded border border-dashed border-line2 p-3 text-center text-xs text-faint" style={{ borderColor: "var(--sc-border-strong)" }}>
       Drag audio/image/video files onto this panel to import into the project library.
-      <button className="sc-btn mt-2 text-xs" onClick={() => onImport?.()}>
-        Import media files…
-      </button>
+      <div className="mt-2 flex justify-center gap-2">
+        <button className="sc-btn text-xs" onClick={() => onImport?.()}>
+          Import media files…
+        </button>
+        <button className="sc-btn text-xs" onClick={() => onImportFolder?.()}>
+          Import folder…
+        </button>
+      </div>
     </div>
   );
 }

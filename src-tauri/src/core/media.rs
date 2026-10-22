@@ -78,24 +78,69 @@ fn issue(cue: &Cue, asset: &MediaAsset, severity: Severity) -> ValidationIssue {
 }
 
 /// Import one or more files into the catalog.
+/// Folder support: directories (recursively, hidden entries skipped, depth
+/// capped) expand to the known-media files they contain.
+pub fn expand_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for p in paths {
+        if p.is_dir() {
+            collect_dir(p, &mut out, 0);
+        } else {
+            out.push(p.clone());
+        }
+    }
+    out
+}
+
+fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
+    if depth > 8 {
+        return; // defensive cap against pathological trees / symlink loops
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        let hidden = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.starts_with('.'))
+            .unwrap_or(false);
+        if hidden {
+            continue;
+        }
+        if p.is_dir() {
+            collect_dir(&p, out, depth + 1);
+        } else if known_media_extension(&p).is_some() {
+            out.push(p);
+        }
+    }
+}
+
 pub fn import_files(project: &mut Project, paths: &[PathBuf]) -> Result<Vec<MediaAsset>, MediaError> {
+    // Explicit user-picked files stay strictly validated (unknown extension →
+    // honest error); directory walks simply skip non-media entries.
+    let paths: Vec<PathBuf> = expand_paths(paths);
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut imported = Vec::new();
     for p in paths {
         if !p.exists() {
             return Err(MediaError::NotFound(p.display().to_string()));
         }
-        let Some(kind) = known_media_extension(p) else {
+        let Some(kind) = known_media_extension(&p) else {
             return Err(MediaError::Unsupported(
                 p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
             ));
         };
-        if let Ok(meta) = std::fs::metadata(p) {
+        if let Ok(meta) = std::fs::metadata(&p) {
             if meta.len() == 0 {
                 return Err(MediaError::Unreadable(p.display().to_string()));
             }
         }
-        let mut asset = MediaAsset::new(kind, normalize_path(p));
-        if let Some(dur) = probe_duration(p, kind) {
+        let mut asset = MediaAsset::new(kind, normalize_path(&p));
+        if let Some(dur) = probe_duration(&p, kind) {
             asset.duration_secs = Some(dur);
         }
         imported.push(asset);
@@ -251,13 +296,32 @@ mod tests {
     }
 
     #[test]
+    fn expand_paths_walks_dirs_and_skips_non_media() {
+        let dir = std::env::temp_dir().join(format!("stagecue_expand_{}", std::process::id()));
+        let sub = dir.join("nested");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(dir.join("a.wav"), b"x").unwrap();
+        std::fs::write(dir.join("skip.xyz"), b"x").unwrap();
+        std::fs::write(sub.join("b.png"), b"x").unwrap();
+        std::fs::write(sub.join(".hidden.jpg"), b"x").unwrap();
+
+        let expansion = expand_paths(&[PathBuf::from("/definitely/stream.wav"), dir.clone()]);
+        assert_eq!(expansion.len(), 3, "files + 2 media in tree: {expansion:?}");
+        assert!(expansion.iter().any(|p| p.ends_with("a.wav")));
+        assert!(expansion.iter().any(|p| p.ends_with("b.png")));
+        assert!(!expansion.iter().any(|p| p.file_name().unwrap() == "skip.xyz"));
+        assert!(!expansion.iter().any(|p| p.file_name().unwrap() == ".hidden.jpg"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn missing_asset_is_flagged_with_cue_identity() {
         let p = project_with_missing_audio();
         let issues = validate_for_show(&p);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].cue_number, "Q1");
-        assert_eq!(issues[0].severity, Severity::Missing);
-        assert!(issues[0].asset_path.contains("never.wav"));
+        assert_eq!(issues[0].severity, Severity::Missing);        assert!(issues[0].asset_path.contains("never.wav"));
     }
 
     #[test]
