@@ -309,7 +309,7 @@ pub fn known_media_extension(path: &Path) -> Option<MediaKind> {
         "wav" | "mp3" | "flac" | "ogg" | "oga" | "m4a" | "aac" | "opus" | "aiff" | "aif" | "wma" => MediaKind::Audio,
         "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "tif" | "tiff" => MediaKind::Image,
         "mp4" | "mov" | "mkv" | "webm" | "avi" | "m4v" => MediaKind::Video,
-        "pdf" => MediaKind::Slide,
+        "pdf" | "ppt" | "pptx" | "odp" => MediaKind::Slide,
         "txt" | "md" => MediaKind::Text,
         _ => return None,
     })

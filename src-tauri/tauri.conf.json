@@ -32,8 +32,15 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"],
-    "category": "Multimedia",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "category": "AudioVideo",
     "shortDescription": "Cue-based theatre playback and backdrop control",
     "longDescription": "StageCue is a show-control application for live theatre, rehearsals, worship and presentations. It combines audio playback and mixing, backdrop/slide output, cue sequencing, a dedicated operator console, and a clean full-screen output for projectors and external displays."
   },

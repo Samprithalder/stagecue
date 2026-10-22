@@ -62,6 +62,12 @@ export type ProjectSummaryDTO = {
   missingAssets: number;
 };
 
+/** Emitted when the OS hands StageCue a file (double-click / "Open with"). */
+export type OpenedProjectDTO = {
+  project: Project;
+  summary: ProjectSummaryDTO;
+};
+
 function unwrap<T>(p: Promise<T>): Promise<T> {
   return p;
 }

@@ -13,10 +13,80 @@ pub mod show;
 
 use commands::AppState;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+
+/// Payload for the `stagecue://project` event (file opened from the OS /
+/// second launch), so the console can refresh its whole project view.
+#[derive(Clone, serde::Serialize)]
+struct OpenedProject {
+    project: crate::core::model::Project,
+    summary: commands::ProjectSummary,
+}
+
+/// Picks the first forwarded file path (strip argv[0]-style executable path).
+fn forwarded_file(argv: &[String]) -> Option<String> {
+    argv.iter()
+        .skip(1) // first entry is the binary path (both env::args and plugin argv)
+        .find(|a| !a.trim().is_empty() && !a.starts_with('-'))
+        .cloned()
+}
+
+/// Opening a file from the OS: a `.stagecue` project is loaded; a media file
+/// (e.g. a PowerPoint deck) seeds a brand-new project with that asset.
+fn open_stagecue_file(app: &tauri::AppHandle, path: String) {
+    let result: Result<(), String> = (|| {
+        let is_project = std::path::Path::new(&path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("stagecue"))
+            .unwrap_or(false);
+        if is_project {
+            commands::project_open(app.clone(), app.state::<AppState>(), path.clone())?;
+        } else {
+            if crate::core::model::known_media_extension(std::path::Path::new(&path)).is_none() {
+                return Err(format!("StageCue does not recognize this file type: {path}"));
+            }
+            let name = std::path::Path::new(&path)
+                .file_stem()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "New show".into());
+            let _summary = commands::project_new(app.clone(), app.state::<AppState>(), name.clone())?;
+            if let Err(err) = commands::asset_import(app.state::<AppState>(), vec![path.clone()]) {
+                log::error!("importing {path} into a new project failed: {err}");
+            } else {
+                log::info!("created project \"{name}\" with imported asset {path}");
+            }
+        }
+        Ok(())
+    })();
+    match result {
+        Ok(()) => {
+            let state = app.state::<AppState>();
+            let summary = commands::summary(&state);
+            if let Some(project) = state.project.lock().unwrap().clone() {
+                let _ = app.emit(
+                    "stagecue://project",
+                    OpenedProject {
+                        project: (*project).clone(),
+                        summary,
+                    },
+                );
+            }
+            log::info!("opened file from OS: {path}");
+        }
+        Err(err) => log::error!("opening file {path} failed: {err}"),
+    }
+}
 
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin: forwards files from double-click /
+        // "Open with" launches into the already-running console instance.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(path) = forwarded_file(&argv) {
+                open_stagecue_file(app, path);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(
@@ -81,6 +151,16 @@ pub fn run() {
             }
             // Start the deterministic show tick loop (30 Hz).
             runner.spawn_tick_loop();
+            // A file may have been handed to us on first launch (e.g.
+            // double-click: `stagecue show.stagecue`). Handle it after the
+            // console window exists so it can react to the event.
+            if let Some(path) = forwarded_file(&std::env::args().collect::<Vec<String>>()) {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    open_stagecue_file(&handle, path);
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

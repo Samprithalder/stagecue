@@ -60,7 +60,7 @@ impl Default for AppState {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn project_new(app: tauri::AppHandle, state: State<AppState>, name: String) -> Result<ProjectSummary, String> {
+pub fn project_new(app: tauri::AppHandle, state: State<'_, AppState>, name: String) -> Result<ProjectSummary, String> {
     let project = Arc::new(Project::new(name));
     *state.project.lock().unwrap() = Some(project.clone());
     *state.project_path.lock().unwrap() = None;
@@ -70,7 +70,7 @@ pub fn project_new(app: tauri::AppHandle, state: State<AppState>, name: String) 
     Ok(summary(&state))
 }
 
-fn summary(state: &AppState) -> ProjectSummary {
+pub(crate) fn summary(state: &AppState) -> ProjectSummary {
     let project = state.project.lock().unwrap().clone().unwrap_or_default();
     ProjectSummary {
         path: state
@@ -90,7 +90,7 @@ fn summary(state: &AppState) -> ProjectSummary {
 #[tauri::command]
 pub fn project_open(
     app: tauri::AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     path: String,
 ) -> Result<Project, String> {
     let path_buf = PathBuf::from(&path);
@@ -113,7 +113,7 @@ fn push_recent(mut recent: Vec<String>, path: String) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn project_save(state: State<AppState>) -> Result<ProjectSummary, String> {
+pub fn project_save(state: State<'_, AppState>) -> Result<ProjectSummary, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project loaded")?;
     let path = state
         .project_path
@@ -127,7 +127,7 @@ pub fn project_save(state: State<AppState>) -> Result<ProjectSummary, String> {
 }
 
 #[tauri::command]
-pub fn project_save_as(state: State<AppState>, path: String) -> Result<ProjectSummary, String> {
+pub fn project_save_as(state: State<'_, AppState>, path: String) -> Result<ProjectSummary, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project loaded")?;
     persistence::save(Path::new(&path), &project).map_err(|e| e.to_string())?;
     *state.project_path.lock().unwrap() = Some(PathBuf::from(&path));
@@ -144,19 +144,19 @@ pub fn recovery_candidate(path: String) -> Result<Option<String>, String> {
 
 /// Validate before show mode: exact cue + asset issues.
 #[tauri::command]
-pub fn validate_show(state: State<AppState>) -> Result<Vec<ValidationIssue>, String> {
+pub fn validate_show(state: State<'_, AppState>) -> Result<Vec<ValidationIssue>, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project loaded")?;
     Ok(media::validate_for_show(&project))
 }
 
 #[tauri::command]
-pub fn project_mark_dirty(state: State<AppState>) -> Result<bool, String> {
+pub fn project_mark_dirty(state: State<'_, AppState>) -> Result<bool, String> {
     state.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
     Ok(true)
 }
 
 #[tauri::command]
-pub fn recent_projects(state: State<AppState>) -> Vec<String> {
+pub fn recent_projects(state: State<'_, AppState>) -> Vec<String> {
     state.recent.lock().unwrap().clone()
 }
 
@@ -165,13 +165,13 @@ pub fn recent_projects(state: State<AppState>) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn audio_output_devices(state: State<AppState>) -> Result<Vec<(String, String)>, String> {
+pub fn audio_output_devices(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
     let runner = state.runner()?;
     Ok(runner.audio.output_devices())
 }
 
 #[tauri::command]
-pub fn audio_set_output(state: State<AppState>, device_name: Option<String>) -> Result<String, String> {
+pub fn audio_set_output(state: State<'_, AppState>, device_name: Option<String>) -> Result<String, String> {
     let runner = state.runner()?;
     // Refuse to swap devices mid-show unless nothing is playing.
     if !runner.audio.active_cue_ids().is_empty() {
@@ -185,38 +185,38 @@ pub fn audio_set_output(state: State<AppState>, device_name: Option<String>) -> 
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn audio_set_master_db(state: State<AppState>, db: f32) -> Result<f32, String> {
+pub fn audio_set_master_db(state: State<'_, AppState>, db: f32) -> Result<f32, String> {
     let runner = state.runner()?;
     runner.audio.set_master_db(db);
     Ok(runner.audio.master_db())
 }
 
 #[tauri::command]
-pub fn audio_set_master_mute(state: State<AppState>, muted: bool) -> Result<bool, String> {
+pub fn audio_set_master_mute(state: State<'_, AppState>, muted: bool) -> Result<bool, String> {
     let runner = state.runner()?;
     runner.audio.set_master_muted(muted);
     Ok(runner.audio.master_muted())
 }
 
 #[tauri::command]
-pub fn audio_set_max_master_db(state: State<AppState>, max_db: f32) -> Result<f32, String> {
+pub fn audio_set_max_master_db(state: State<'_, AppState>, max_db: f32) -> Result<f32, String> {
     let runner = state.runner()?;
     runner.audio.set_max_master_db(max_db);
     Ok(runner.audio.master_db())
 }
 
 #[tauri::command]
-pub fn audio_set_voice_gain(state: State<AppState>, cue_id: String, db: f32) -> Result<(), String> {
+pub fn audio_set_voice_gain(state: State<'_, AppState>, cue_id: String, db: f32) -> Result<(), String> {
     state.runner()?.audio.set_voice_gain(&cue_id, db).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn audio_set_voice_mute(state: State<AppState>, cue_id: String, muted: bool) -> Result<(), String> {
+pub fn audio_set_voice_mute(state: State<'_, AppState>, cue_id: String, muted: bool) -> Result<(), String> {
     state.runner()?.audio.set_voice_mute(&cue_id, muted).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn audio_set_voice_solo(state: State<AppState>, cue_id: String, soloed: bool) -> Result<(), String> {
+pub fn audio_set_voice_solo(state: State<'_, AppState>, cue_id: String, soloed: bool) -> Result<(), String> {
     state.runner()?.audio.set_voice_solo(&cue_id, soloed).map_err(|e| e.to_string())
 }
 
@@ -225,71 +225,71 @@ pub fn audio_set_voice_solo(state: State<AppState>, cue_id: String, soloed: bool
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn show_go(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_go(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::Go)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_stop_current(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_stop_current(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::StopCurrent)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_fade_out(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_fade_out(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::FadeOutCurrent)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_toggle_pause(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_toggle_pause(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::TogglePause)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_restart_cue(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_restart_cue(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::RestartCue)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_blackout(state: State<AppState>, on: bool) -> Result<bool, String> {
+pub fn show_blackout(state: State<'_, AppState>, on: bool) -> Result<bool, String> {
     state.runner()?.dispatch(ShowCommand::SetBlackout(on))?;
     Ok(on)
 }
 
 #[tauri::command]
-pub fn show_panic(state: State<AppState>) -> Result<(), String> {
+pub fn show_panic(state: State<'_, AppState>) -> Result<(), String> {
     state.runner()?.dispatch(ShowCommand::Panic)?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn show_recover_skip(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_recover_skip(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::RecoverSkip)?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_arm_cue(state: State<AppState>, index: usize) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_arm_cue(state: State<'_, AppState>, index: usize) -> Result<crate::core::machine::ShowSnapshot, String> {
     state.runner()?.dispatch(ShowCommand::ArmCue(index))?;
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_snapshot(state: State<AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
+pub fn show_snapshot(state: State<'_, AppState>) -> Result<crate::core::machine::ShowSnapshot, String> {
     Ok(state.runner()?.snapshot())
 }
 
 #[tauri::command]
-pub fn show_log(state: State<AppState>) -> Result<Vec<ShowLogEntry>, String> {
+pub fn show_log(state: State<'_, AppState>) -> Result<Vec<ShowLogEntry>, String> {
     Ok(state.runner()?.log_entries())
 }
 
 #[tauri::command]
-pub fn output_test_pattern(state: State<AppState>, on: bool) -> Result<bool, String> {
+pub fn output_test_pattern(state: State<'_, AppState>, on: bool) -> Result<bool, String> {
     state.runner()?.set_test_pattern(on).map_err(|e| e.to_string())?;
     Ok(on)
 }
@@ -299,7 +299,7 @@ pub fn output_test_pattern(state: State<AppState>, on: bool) -> Result<bool, Str
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn cue_add(state: State<AppState>, number: Option<String>, name: String) -> Result<Vec<Cue>, String> {
+pub fn cue_add(state: State<'_, AppState>, number: Option<String>, name: String) -> Result<Vec<Cue>, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     let cue = Cue::new(
@@ -313,7 +313,7 @@ pub fn cue_add(state: State<AppState>, number: Option<String>, name: String) -> 
 }
 
 #[tauri::command]
-pub fn cue_remove(state: State<AppState>, cue_id: String) -> Result<(), String> {
+pub fn cue_remove(state: State<'_, AppState>, cue_id: String) -> Result<(), String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     p.cues.retain(|c| c.id != cue_id);
@@ -322,7 +322,7 @@ pub fn cue_remove(state: State<AppState>, cue_id: String) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub fn cue_duplicate(state: State<AppState>, cue_id: String) -> Result<Vec<Cue>, String> {
+pub fn cue_duplicate(state: State<'_, AppState>, cue_id: String) -> Result<Vec<Cue>, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     p.cues = crate::core::ops::duplicate_cue(&p, &cue_id);
@@ -332,7 +332,7 @@ pub fn cue_duplicate(state: State<AppState>, cue_id: String) -> Result<Vec<Cue>,
 }
 
 #[tauri::command]
-pub fn cue_update(state: State<AppState>, cue: Cue) -> Result<(), String> {
+pub fn cue_update(state: State<'_, AppState>, cue: Cue) -> Result<(), String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     if let Some(existing) = p.cues.iter_mut().find(|c| c.id == cue.id) {
@@ -345,7 +345,7 @@ pub fn cue_update(state: State<AppState>, cue: Cue) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn cue_reorder(state: State<AppState>, from: usize, to: usize) -> Result<(), String> {
+pub fn cue_reorder(state: State<'_, AppState>, from: usize, to: usize) -> Result<(), String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     crate::core::ops::move_cue(&mut p, from, to)?;
@@ -354,7 +354,7 @@ pub fn cue_reorder(state: State<AppState>, from: usize, to: usize) -> Result<(),
 }
 
 #[tauri::command]
-pub fn asset_import(state: State<AppState>, paths: Vec<String>) -> Result<Vec<MediaAsset>, String> {
+pub fn asset_import(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<MediaAsset>, String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     let pathbufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
@@ -364,7 +364,7 @@ pub fn asset_import(state: State<AppState>, paths: Vec<String>) -> Result<Vec<Me
 }
 
 #[tauri::command]
-pub fn asset_relink(state: State<AppState>, asset_id: String, new_path: String) -> Result<(), String> {
+pub fn asset_relink(state: State<'_, AppState>, asset_id: String, new_path: String) -> Result<(), String> {
     let project = state.project.lock().unwrap().clone().ok_or("no project")?;
     let mut p = (*project).clone();
     media::relink_asset(&mut p, &asset_id, PathBuf::from(new_path)).map_err(|e| e.to_string())?;
@@ -373,7 +373,7 @@ pub fn asset_relink(state: State<AppState>, asset_id: String, new_path: String) 
 }
 
 #[tauri::command]
-pub fn asset_kind_for(state: State<AppState>, path: String) -> Result<Option<MediaKind>, String> {
+pub fn asset_kind_for(state: State<'_, AppState>, path: String) -> Result<Option<MediaKind>, String> {
     let _ = state;
     Ok(crate::core::model::known_media_extension(Path::new(&path)))
 }

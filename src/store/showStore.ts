@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
 import { ipc, type ProjectSummaryDTO } from "../ipc";
 import type { Project } from "../types";
-import type { ShowSnapshotDTO, StageVisualDTO, ValidationIssueDTO } from "../ipc";
+import type { ShowSnapshotDTO, StageVisualDTO, ValidationIssueDTO, OpenedProjectDTO } from "../ipc";
 
 export type VoiceState = { cueId: string; gainDb: number; muted: boolean; soloed: boolean };
 
@@ -55,6 +55,11 @@ export const useShow = create<ShowStore>((set, get) => ({
     await Promise.all([
       listen<ProjectSummaryDTO>("stagecue://summary", (e) =>
         set({ summary: e.payload, issues: [] }),
+      ),
+      // The OS handed the app a file (double-click / "Open with"): replace the
+      // whole project view exactly as if the operator used File → Open.
+      listen<OpenedProjectDTO>("stagecue://project", (e) =>
+        get().setProject(e.payload.project, e.payload.summary),
       ),
       listen<ShowSnapshotDTO>("stagecue://show", (e) => set({ snapshot: e.payload })),
       listen<StageVisualDTO>("stagecue://visual", (e) => set({ stageVisual: e.payload })),
