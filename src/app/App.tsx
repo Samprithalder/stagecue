@@ -9,7 +9,6 @@ import StagePreviewPanel from "../panels/StagePreviewPanel";
 import Inspector from "../panels/Inspector";
 import BottomConsole from "../panels/BottomConsole";
 import PerformanceMode from "../panels/PerformanceMode";
-import { openOutputWindow } from "../output/window";
 import { installShortcuts } from "./shortcuts";
 
 export default function App() {
@@ -17,7 +16,8 @@ export default function App() {
 
   useEffect(() => {
     void ensureStoreInit();
-    void openOutputWindow();
+    // The stage output window is opened on demand from the top bar —
+    // never at launch: the operator console is all you should see first.
     const removeShortcuts = installShortcuts();
     return removeShortcuts;
   }, []);
