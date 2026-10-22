@@ -14,21 +14,50 @@ export default function Inspector() {
   const [draft, setDraft] = useState<Draft | null>(null);
 
   async function importFiles() {
-    const files = await openFileDialog({
-      title: "Add media",
-      multiple: true,
-      filters: [
-        {
-          name: "Media",
-          extensions: ["wav", "mp3", "flac", "ogg", "oga", "m4a", "aac", "opus", "aiff", "aif", "wma", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "mp4", "mov", "mkv", "webm", "avi", "m4v", "pdf", "ppt", "pptx", "odp"],
-        },
-      ],
-    });
-    if (!files) return;
-    const paths = Array.isArray(files) ? files : [files];
+    let recentPicked = false;
+    let files: Awaited<ReturnType<typeof openFileDialog>> | null = null;
     try {
-      const assets = await ipc.assetImport(paths);
-      useShow.getState().notify("info", `Imported ${assets.length} file(s).`);
+      files = await openFileDialog({
+        title: "Add media",
+        multiple: true,
+        filters: [
+          {
+            name: "Media",
+            extensions: ["wav", "mp3", "flac", "ogg", "oga", "m4a", "aac", "opus", "aiff", "aif", "wma", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff", "mp4", "mov", "mkv", "webm", "avi", "m4v", "pdf", "ppt", "pptx", "odp"],
+          },
+        ],
+      });
+    } catch (e) {
+      useShow.getState().notify("error", `File dialog failed: ${e}`);
+      return;
+    }
+    if (!files) return;
+    const picked = Array.isArray(files) ? files : [files];
+    // Files chosen from the "Recent" pane arrive as recents:// placeholders
+    // that no real filesystem path exists for — ask for a real folder instead.
+    const usable = picked.filter((p) => !String(p).startsWith("recent://"));
+    recentPicked = usable.length < picked.length;
+    const paths = usable.map(String);
+    if (!paths.length) {
+      useShow.getState().notify(
+        "warn",
+        "Files picked from 'Recent' can't be opened directly — browse to the real folder (e.g. Documents) instead.",
+      );
+      return;
+    }
+    try {
+      const { imported, rejected } = await ipc.assetImport(paths);
+      const extra = recentPicked ? " (Recent-pane picks were skipped)" : "";
+      if (imported.length) {
+        useShow.getState().notify("info", `Imported ${imported.length} file(s)${extra}.`);
+      } else if (recentPicked) {
+        useShow.getState().notify(
+          "warn",
+          "Files picked from 'Recent' can't be opened directly — browse to the real folder (e.g. Documents) instead.",
+        );
+      } else if (rejected.length) {
+        useShow.getState().notify("error", `Nothing imported. First problem: ${rejected[0]}`);
+      }
     } catch (e) {
       useShow.getState().notify("error", `Import failed: ${e}`);
     }
@@ -38,9 +67,9 @@ export default function Inspector() {
     const folder = await openFileDialog({ title: "Import folder of media", directory: true, multiple: false });
     if (!folder) return;
     try {
-      const assets = await ipc.assetImport([String(folder)]);
-      if (assets.length) {
-        useShow.getState().notify("info", `Imported ${assets.length} media file(s) from folder.`);
+      const { imported } = await ipc.assetImport([String(folder)]);
+      if (imported.length) {
+        useShow.getState().notify("info", `Imported ${imported.length} media file(s) from folder.`);
       } else {
         useShow.getState().notify("warn", "That folder contains no media files StageCue recognizes.");
       }
@@ -59,6 +88,18 @@ export default function Inspector() {
     return (
       <aside className="panel w-[300px] shrink-0 p-4 text-dim" aria-label="Inspector">
         <p>Select a cue to inspect it. Drag media from the library into a cue to assign it.</p>
+        {project.assets.length > 0 && (
+          <div className="mt-3">
+            <p className="sc-label">Media library ({project.assets.length})</p>
+            <ul className="mt-1 max-h-28 overflow-y-auto pr-1 text-xs">
+              {project.assets.slice(-12).map((a) => (
+                <li key={a.id} className="truncate text-dim" title={a.path}>
+                  {a.displayName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <ImportZone onImport={() => void importFiles()} onImportFolder={() => void importFolder()} />
       </aside>
     );
@@ -219,12 +260,21 @@ export default function Inspector() {
         <button
           className="sc-btn mt-2 w-full text-xs"
           onClick={async () => {
-            const files = await openFileDialog({ title: "Assign audio", multiple: true });
-            if (!files) return;
-            const paths = Array.isArray(files) ? files : [files];
-            const imported = await ipc.assetImport(paths);
-            update({ audioAssetIds: [...draft.audioAssetIds, ...imported.map((a) => a.id)] });
-            setTimeout(commit, 0);
+            try {
+              const files = await openFileDialog({ title: "Assign audio", multiple: true });
+              if (!files) return;
+              const paths = (Array.isArray(files) ? files : [files]).map(String);
+              const { imported, rejected } = await ipc.assetImport(paths);
+              if (rejected.length) {
+                useShow.getState().notify("warn", `Skipped ${rejected.length} unimportable file(s).`);
+              }
+              if (imported.length) {
+                update({ audioAssetIds: [...draft.audioAssetIds, ...imported.map((a) => a.id)] });
+                setTimeout(commit, 0);
+              }
+            } catch (e) {
+              useShow.getState().notify("error", `Assign failed: ${e}`);
+            }
           }}
         >
           Assign audio file…
@@ -232,11 +282,19 @@ export default function Inspector() {
         <button
           className="sc-btn mt-1 w-full text-xs"
           onClick={async () => {
-            const file = await openFileDialog({ title: "Assign visual" });
-            if (!file) return;
-            const [imported] = await ipc.assetImport([file as string]);
-            update({ visualAssetId: imported.id });
-            setTimeout(commit, 0);
+            try {
+              const file = await openFileDialog({ title: "Assign visual" });
+              if (!file) return;
+              const { imported, rejected } = await ipc.assetImport([String(file)]);
+              if (imported.length) {
+                update({ visualAssetId: imported[0].id });
+                setTimeout(commit, 0);
+              } else {
+                useShow.getState().notify("error", `Couldn't use that file: ${rejected[0] ?? "unrecognized"}`);
+              }
+            } catch (e) {
+              useShow.getState().notify("error", `Assign failed: ${e}`);
+            }
           }}
         >
           Assign visual…

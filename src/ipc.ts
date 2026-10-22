@@ -68,6 +68,12 @@ export type OpenedProjectDTO = {
   summary: ProjectSummaryDTO;
 };
 
+/** Batch import outcome: partially-failed imports never abort the batch. */
+export type ImportResultDTO = {
+  imported: MediaAsset[];
+  rejected: string[];
+};
+
 function unwrap<T>(p: Promise<T>): Promise<T> {
   return p;
 }
@@ -114,8 +120,8 @@ export const ipc = {
   cueUpdate: (cue: Cue): Promise<void> => invoke<void>("cue_update", { cue }),
   cueReorder: (from: number, to: number): Promise<void> =>
     invoke<void>("cue_reorder", { from, to }),
-  assetImport: (paths: string[]): Promise<MediaAsset[]> =>
-    invoke<MediaAsset[]>("asset_import", { paths }),
+  assetImport: (paths: string[]): Promise<ImportResultDTO> =>
+    invoke<ImportResultDTO>("asset_import", { paths }),
   assetRelink: (assetId: string, newPath: string): Promise<void> =>
     invoke<void>("asset_relink", { assetId, newPath }),
 };

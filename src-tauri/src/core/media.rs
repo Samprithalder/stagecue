@@ -117,6 +117,45 @@ fn collect_dir(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
     }
 }
 
+/// Outcome of a lenient batch import: explicit picks are validated but never
+/// abort the whole batch — problems are surfaced per file instead.
+pub struct ImportOutcome {
+    pub imported: Vec<MediaAsset>,
+    pub rejected: Vec<String>,
+}
+
+pub fn import_files_lenient(project: &mut Project, paths: &[PathBuf]) -> ImportOutcome {
+    let paths: Vec<PathBuf> = expand_paths(paths);
+    let mut imported = Vec::new();
+    let mut rejected: Vec<String> = Vec::new();
+    for p in paths {
+        if !p.exists() {
+            rejected.push(format!("{} — file not found", p.display()));
+            continue;
+        }
+        let Some(kind) = known_media_extension(&p) else {
+            rejected.push(format!(
+                "{} — unsupported file type",
+                p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+            ));
+            continue;
+        };
+        if let Ok(meta) = std::fs::metadata(&p) {
+            if meta.len() == 0 {
+                rejected.push(format!("{} — empty file", p.display()));
+                continue;
+            }
+        }
+        let mut asset = MediaAsset::new(kind, normalize_path(&p));
+        if let Some(dur) = probe_duration(&p, kind) {
+            asset.duration_secs = Some(dur);
+        }
+        imported.push(asset);
+    }
+    project.assets.extend(imported.iter().cloned());
+    ImportOutcome { imported, rejected }
+}
+
 pub fn import_files(project: &mut Project, paths: &[PathBuf]) -> Result<Vec<MediaAsset>, MediaError> {
     // Explicit user-picked files stay strictly validated (unknown extension →
     // honest error); directory walks simply skip non-media entries.

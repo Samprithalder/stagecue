@@ -353,14 +353,26 @@ pub fn cue_reorder(state: State<'_, AppState>, from: usize, to: usize) -> Result
     Ok(())
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub imported: Vec<MediaAsset>,
+    pub rejected: Vec<String>,
+}
+
 #[tauri::command]
-pub fn asset_import(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<MediaAsset>, String> {
+pub fn asset_import(state: State<'_, AppState>, paths: Vec<String>) -> Result<ImportResult, String> {
     let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     let pathbufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-    let imported = media::import_files(&mut p, &pathbufs).map_err(|e| e.to_string())?;
-    commit(&state, p)?;
-    Ok(imported)
+    let outcome = media::import_files_lenient(&mut p, &pathbufs);
+    if !outcome.imported.is_empty() {
+        commit(&state, p)?;
+    }
+    Ok(ImportResult {
+        imported: outcome.imported,
+        rejected: outcome.rejected,
+    })
 }
 
 #[tauri::command]
