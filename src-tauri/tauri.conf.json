@@ -40,7 +40,7 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "category": "AudioVideo",
+    "category": "Music",
     "shortDescription": "Cue-based theatre playback and backdrop control",
     "longDescription": "StageCue is a show-control application for live theatre, rehearsals, worship and presentations. It combines audio playback and mixing, backdrop/slide output, cue sequencing, a dedicated operator console, and a clean full-screen output for projectors and external displays."
   },
