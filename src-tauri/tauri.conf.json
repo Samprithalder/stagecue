@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StageCue",
+  "version": "0.1.0",
+  "identifier": "app.stagecue.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "console",
+        "title": "StageCue",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "url": "index.html"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "category": "Multimedia",
+    "shortDescription": "Cue-based theatre playback and backdrop control",
+    "longDescription": "StageCue is a show-control application for live theatre, rehearsals, worship and presentations. It combines audio playback and mixing, backdrop/slide output, cue sequencing, a dedicated operator console, and a clean full-screen output for projectors and external displays."
+  },
+  "plugins": {}
+}

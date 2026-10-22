@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Dev / environment noise
+*.log
+.cache/
+.DS_Store
+Thumbs.db
+.LSOverride
+
+# Installed copies created by our convenience scripts
+/apps/

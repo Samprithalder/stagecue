@@ -1,0 +1,16 @@
+@import "../design/theme.css";
+
+html,
+body {
+  background: #000 !important;
+}
+.sc-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #f4a63b;
+  font-size: 1.4rem;
+  text-align: center;
+  padding: 2rem;
+}

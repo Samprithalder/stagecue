@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/*
+  StageCue design tokens — dark stage-console language.
+  Deep charcoal foundation, warm amber accents, restrained borders.
+*/
+
+:root {
+  --sc-bg: #141312;            /* near-black foundation */
+  --sc-panel: #1d1b19;         /* slightly lighter panels */
+  --sc-panel-2: #24211e;       /* nested panels */
+  --sc-border: #38332e;
+  --sc-border-strong: #4a443d;
+  --sc-text: #efeae2;          /* off-white */
+  --sc-text-dim: #b3aca1;
+  --sc-text-faint: #7d766c;
+
+  --sc-amber: #f4a63b;         /* primary action */
+  --sc-amber-dim: #b97d2c;
+  --sc-blue: #58a6dd;          /* information / preview */
+  --sc-green: #4caf7d;         /* ready / armed */
+  --sc-red: #d4544a;           /* stop / blackout / panic / error */
+  --sc-red-deep: #7e2c27;
+
+  /* Semantic aliases */
+  --sc-focus: var(--sc-blue);
+}
+
+@theme inline {
+  --color-bg: var(--sc-bg);
+  --color-panel: var(--sc-panel);
+  --color-panel2: var(--sc-panel-2);
+  --color-line: var(--sc-border);
+  --color-line2: var(--sc-border-strong);
+  --color-ink: var(--sc-text);
+  --color-dim: var(--sc-text-dim);
+  --color-faint: var(--sc-text-faint);
+  --color-amber: var(--sc-amber);
+  --color-amberd: var(--sc-amber-dim);
+  --color-blu: var(--sc-blue);
+  --color-grn: var(--sc-green);
+  --color-red: var(--sc-red);
+}
+
+html,
+body {
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  font-size: var(--sc-ui-scale, 100%);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Tabular numerals for all timecode / value readouts */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--sc-focus);
+  outline-offset: 1px;
+}
+
+/* Console panel primitive */
+.panel {
+  background: var(--sc-panel);
+  border: 1px solid var(--sc-border);
+  border-radius: 6px;
+}
+
+/* Large elementary buttons are rectangles with generous spacing */
+.sc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  border-radius: 4px;
+  border: 1px solid var(--sc-border-strong);
+  background: var(--sc-panel-2);
+  color: var(--sc-text);
+  padding: 0.5em 1em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.sc-btn:hover:not(:disabled) {
+  background: #2e2a26;
+  border-color: var(--sc-amber-dim);
+}
+.sc-btn:disabled {
+  opacity: 0.45;
+}
+
+.sc-btn-go {
+  background: var(--sc-amber);
+  border-color: var(--sc-amber);
+  color: #1a1408;
+}
+.sc-btn-go:hover:not(:disabled) {
+  background: #ffb44f;
+  border-color: #ffb44f;
+}
+
+.sc-btn-stop {
+  background: var(--sc-red);
+  border-color: var(--sc-red);
+  color: #fff;
+}
+.sc-btn-stop:hover:not(:disabled) {
+  background: #e0675c;
+}
+
+.sc-btn-blackout {
+  background: var(--sc-red-deep);
+  border-color: var(--sc-red-deep);
+  color: #f7dedb;
+}
+
+/* Metering */
+.meter-clip { background: var(--sc-red) !important; }
+.meter-warn { background: var(--sc-amber) !important; }
+
+/* Cue list emphasis */
+.cue-row-current {
+  border-left: 3px solid var(--sc-amber);
+  background: color-mix(in srgb, var(--sc-amber) 8%, var(--sc-panel));
+}
+.cue-row-armed {
+  border-left: 3px solid var(--sc-green);
+  background: color-mix(in srgb, var(--sc-green) 7%, var(--sc-panel));
+}
+
+/* Stage output body is pure black; the output window must be chromeless. */
+.stage-output-body {
+  background: #000;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Keep long labels readable on 1080p/1440p panels */
+.sc-label {
+  color: var(--sc-text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
