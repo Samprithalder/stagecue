@@ -58,6 +58,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      # Three matrix jobs upload to the same draft release; tauri-action races
+      # if the draft doesn't exist yet and can end up creating duplicates.
+      # Pre-create it ONCE so every job finds an existing draft to append to.
+      - name: Ensure draft release exists
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "$GITHUB_REPOSITORY" 2>/dev/null \
+            || gh release create "${{ github.ref_name }}" \
+                 --repo "$GITHUB_REPOSITORY" \
+                 --draft \
+                 --prerelease=false \
+                 --title "StageCue ${{ github.ref_name }}" \
+                 --notes "Installers for all platforms. Windows: NSIS .exe or .msi setup (SmartScreen may warn — More info → Run anyway). Linux: AppImage (chmod +x, then run) or .deb/.rpm. macOS: right-click → Open."
+        continue-on-error: true
+
       - name: Build and attach installers
         uses: tauri-apps/tauri-action@v0
         env:
