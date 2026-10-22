@@ -67,7 +67,7 @@ impl ShowRunner {
         self.machine.lock().unwrap().sync_cues(&project.cues);
     }
 
-    fn project(&self) -> Arc<Project> {
+    pub fn project(&self) -> Arc<Project> {
         self.project.lock().unwrap().clone()
     }
 

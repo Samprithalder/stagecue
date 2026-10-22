@@ -300,7 +300,7 @@ pub fn output_test_pattern(state: State<'_, AppState>, on: bool) -> Result<bool,
 
 #[tauri::command]
 pub fn cue_add(state: State<'_, AppState>, number: Option<String>, name: String) -> Result<Vec<Cue>, String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     let cue = Cue::new(
         number.unwrap_or_else(|| p.next_cue_number()),
@@ -314,7 +314,7 @@ pub fn cue_add(state: State<'_, AppState>, number: Option<String>, name: String)
 
 #[tauri::command]
 pub fn cue_remove(state: State<'_, AppState>, cue_id: String) -> Result<(), String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     p.cues.retain(|c| c.id != cue_id);
     commit(&state, p)?;
@@ -323,7 +323,7 @@ pub fn cue_remove(state: State<'_, AppState>, cue_id: String) -> Result<(), Stri
 
 #[tauri::command]
 pub fn cue_duplicate(state: State<'_, AppState>, cue_id: String) -> Result<Vec<Cue>, String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     p.cues = crate::core::ops::duplicate_cue(&p, &cue_id);
     commit(&state, p)?;
@@ -333,7 +333,7 @@ pub fn cue_duplicate(state: State<'_, AppState>, cue_id: String) -> Result<Vec<C
 
 #[tauri::command]
 pub fn cue_update(state: State<'_, AppState>, cue: Cue) -> Result<(), String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     if let Some(existing) = p.cues.iter_mut().find(|c| c.id == cue.id) {
         *existing = cue;
@@ -346,7 +346,7 @@ pub fn cue_update(state: State<'_, AppState>, cue: Cue) -> Result<(), String> {
 
 #[tauri::command]
 pub fn cue_reorder(state: State<'_, AppState>, from: usize, to: usize) -> Result<(), String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     crate::core::ops::move_cue(&mut p, from, to)?;
     commit(&state, p)?;
@@ -355,7 +355,7 @@ pub fn cue_reorder(state: State<'_, AppState>, from: usize, to: usize) -> Result
 
 #[tauri::command]
 pub fn asset_import(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<MediaAsset>, String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     let pathbufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
     let imported = media::import_files(&mut p, &pathbufs).map_err(|e| e.to_string())?;
@@ -365,7 +365,7 @@ pub fn asset_import(state: State<'_, AppState>, paths: Vec<String>) -> Result<Ve
 
 #[tauri::command]
 pub fn asset_relink(state: State<'_, AppState>, asset_id: String, new_path: String) -> Result<(), String> {
-    let project = state.project.lock().unwrap().clone().ok_or("no project")?;
+    let project = ensure_project(&state)?;
     let mut p = (*project).clone();
     media::relink_asset(&mut p, &asset_id, PathBuf::from(new_path)).map_err(|e| e.to_string())?;
     commit(&state, p)?;
@@ -376,6 +376,25 @@ pub fn asset_relink(state: State<'_, AppState>, asset_id: String, new_path: Stri
 pub fn asset_kind_for(state: State<'_, AppState>, path: String) -> Result<Option<MediaKind>, String> {
     let _ = state;
     Ok(crate::core::model::known_media_extension(Path::new(&path)))
+}
+
+/// Commands that mutate the project require a loaded project. The console
+/// always creates one at startup ("Untitled show") — if state was somehow
+/// uninitialized, fall back to the runner's project instead of failing the
+/// operation with "no project".
+fn ensure_project(state: &State<'_, AppState>) -> Result<Arc<Project>, String> {
+    if let Some(p) = state.project.lock().unwrap().clone() {
+        return Ok(p);
+    }
+    let runner = state
+        .runner
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "no show handler is running".to_string())?;
+    let project = runner.project();
+    *state.project.lock().unwrap() = Some(project.clone());
+    Ok(project)
 }
 
 fn commit(state: &State<AppState>, project: Project) -> Result<(), String> {
